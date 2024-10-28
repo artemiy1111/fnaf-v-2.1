@@ -1,0 +1,275 @@
+> Artemiy Boinik:
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FNAF: Проста версія</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #333;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+        #game {
+            width: 300px;
+            height: 400px;
+            background-color: #222;
+            margin: 20px auto;
+            border: 2px solid #fff;
+            position: relative;
+            overflow: hidden;
+            display: none;
+        }
+        .animatronic {
+            font-size: 50px;
+            position: absolute;
+            top: 0;
+            left: 125px;
+            transition: top 1s, opacity 0.5s;
+        }
+        .door {
+            width: 60px;
+            height: 10px;
+            background-color: grey;
+            position: absolute;
+            bottom: 0;
+            left: 120px;
+        }
+        button {
+            padding: 10px;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+        .message {
+            margin-top: 20px;
+            font-size: 20px;
+        }
+        #energyDisplay {
+            margin-top: 10px;
+            font-size: 18px;
+        }
+        #lowEnergyWarning {
+            color: yellow;
+            display: none;
+        }
+        #gameOverScreen, #winScreen {
+            display: none;
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+<h1>FNAF: Проста версія</h1>
+<div id="game">
+    <div class="animatronic" id="animatronic1">🐻</div>
+    <div class="animatronic" id="animatronic2" style="opacity: 0;">🦊</div>
+    <div class="door" id="door"></div>
+    <div id="energyDisplay">Енергія: 100</div>
+    <div id="lowEnergyWarning">Обережно! Низька енергія!</div>
+</div>
+
+<button onclick="startGame()">Почати гру</button>
+<button onclick="toggleLight()" id="lightButton" style="display:none;">Включити світло</button>
+<button onclick="toggleDoor()" id="doorButton" style="display:none;">Закрити двері</button>
+<button onclick="useGenerator()" id="generatorButton" style="display:none;">Використати генератор</button>
+
+<div id="gameOverScreen">
+    <div class="message" id="message"></div>
+    <button onclick="startGame()">Почати знову</button>
+</div>
+
+<div id="winScreen">
+    <div class="message">Вітаємо! Ви виграли!</div>
+    <button onclick="startGame()">Почати знову</button>
+</div>
+
+<script>
+    let gameInterval;
+    let countdownInterval;
+    let doorDamageInterval;
+    let lightEnergyInterval;
+    let powerDrainInterval;
+    let isGameOver = false;
+    let lightOn = false;
+    let doorClosed = false;
+    let stage = 0;
+    let energy = 100;
+    let generatorCooldown = false;
+    let timeLeft = 60;
+    let ghostFlashes = 0;
+    let ghostPresent = false;
+
+function startGame() {
+        isGameOver = false;
+        stage = 0;
+        energy = 100;
+        timeLeft = 60;
+        ghostFlashes = 0;
+        ghostPresent = false;
+        document.getElementById('gameOverScreen').style.display = 'none';
+        document.getElementById('winScreen').style.display = 'none';
+        document.getElementById('message').innerText = '';
+        document.getElementById('lightButton').style.display = 'inline-block';
+        document.getElementById('doorButton').style.display = 'inline-block';
+        document.getElementById('generatorButton').style.display = 'inline-block';
+        document.getElementById('energyDisplay').innerText = 'Енергія: ' + energy;
+        document.getElementById('lowEnergyWarning').style.display = 'none';
+        const animatronic1 = document.getElementById('animatronic1');
+        const animatronic2 = document.getElementById('animatronic2');
+        animatronic1.style.top = '0';
+        animatronic1.style.opacity = '0'; // Start Freddy hidden
+        animatronic2.style.opacity = '0';
+        document.getElementById('game').style.display = 'block';
+
+        gameInterval = setInterval(() => {
+            if (isGameOver) return;
+
+            // Move the first animatronic
+            if (Math.random() < 0.5) {
+                stage++;
+                if (stage > 4) {
+                    if (doorClosed) {
+                        stage = 0;
+                        animatronic1.style.top = '0';
+                    } else {
+                        setTimeout(() => {
+                            if (!isGameOver) {
+                                endGame('Гра закінчена! Аніматронік дійшов до дверей!');
+                            }
+                        }, 5000);
+                    }
+                } else {
+                    animatronic1.style.top = (stage * 100) + 'px';
+                }
+            }
+
+            // Move the second animatronic (fox)
+            if (Math.random() < 0.3 && !ghostPresent) { // 30% chance to appear
+                ghostPresent = true;
+                document.getElementById('animatronic2').style.opacity = '1';
+                startPowerDrain();
+            }
+        }, 5000);
+
+        countdownInterval = setInterval(() => {
+            if (isGameOver) return;
+            timeLeft--;
+            if (timeLeft <= 0) {
+                endWin();
+            }
+        }, 1000);
+
+        doorDamageInterval = setInterval(() => {
+            if (doorClosed && energy > 0) {
+                energy -= 5;
+                updateEnergyDisplay();
+            }
+        }, 3000);
+    }
+
+    function startPowerDrain() {
+        powerDrainInterval = setInterval(() => {
+            if (ghostPresent) {
+                energy -= 2; // Drain 2% of energy per second
+                updateEnergyDisplay();
+                if (energy <= 0) {
+                    endGame('Гра закінчена! Енергія закінчилася!');
+                }
+            }
+        }, 1000); // Drain every second
+    }
+
+    function updateEnergyDisplay() {
+        document.getElementById('energyDisplay').innerText = 'Енергія: ' + energy;
+        if (energy <= 20) {
+            document.getElementById('lowEnergyWarning').style.display = 'block';
+        } else {
+            document.getElementById('lowEnergyWarning').style.display = 'none';
+        }
+    }
+
+    function endGame(message) {
+        isGameOver = true;
+        clearInterval(gameInterval);
+        clearInterval(countdownInterval);
+        clearInterval(doorDamageInterval);
+        clearInterval(lightEnergyInterval);
+        clearInterval(powerDrainInterval);
+        document.getElementById('message').innerText = message;
+        document.getElementById('gameOverScreen').style.display = 'block';
+    }
+
+    function endWin() {
+        isGameOver = true;
+        clearInterval(gameInterval);
+        clearInterval(countdownInterval);
+        clearInterval(doorDamageInterval);
+        clearInterval(lightEnergyInterval);
+        clearInterval(powerDrainInterval);
+        document.getElementById('winScreen').style.display = 'block';
+    }
+
+function toggleLight() {
+        lightOn = !lightOn;
+        const lightButton = document.getElementById('lightButton');
+        const animatronic1 = document.getElementById('animatronic1');
+        
+        if (lightOn) {
+            lightButton.innerText = 'Вимкнути світло';
+            animatronic1.style.opacity = '1'; // Show Freddy
+            if (ghostPresent) {
+                ghostFlashes++;
+                if (ghostFlashes === 3) {
+                    document.getElementById('animatronic2').style.opacity = '0'; // Remove ghost
+                    ghostPresent = false;
+                    clearInterval(powerDrainInterval); // Stop power drain
+                    ghostFlashes = 0; // Reset flashes
+                }
+            }
+            lightEnergyInterval = setInterval(() => {
+                if (lightOn && energy > 0) {
+                    energy -= 1; // Drain 1% of energy per second while the light is on
+                    updateEnergyDisplay();
+                    if (energy <= 0) {
+                        endGame('Гра закінчена! Енергія закінчилася!');
+                    }
+                }
+            }, 1000); // Drain every second
+        } else {
+            lightButton.innerText = 'Включити світло';
+            animatronic1.style.opacity = '0'; // Hide Freddy
+            clearInterval(lightEnergyInterval); // Stop draining energy when light is off
+        }
+    }
+
+    function toggleDoor() {
+        doorClosed = !doorClosed;
+        const doorButton = document.getElementById('doorButton');
+        doorButton.innerText = doorClosed ? 'Відкрити двері' : 'Закрити двері';
+    }
+
+    function useGenerator() {
+        if (generatorCooldown) return;
+        energy += 30; // Restore energy
+        if (energy > 100) energy = 100;
+        updateEnergyDisplay();
+        generatorCooldown = true;
+        setTimeout(() => {
+            generatorCooldown = false;
+        }, 10000); // 10 seconds cooldown
+    }
+</script>
+
+</body>
+</html>
